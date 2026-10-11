@@ -23,5 +23,6 @@ export type Item = {
   kind: string
   title: string
   body: string
+  structured_by: string
   created_at: string
 }

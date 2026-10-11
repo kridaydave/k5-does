@@ -7,6 +7,7 @@ create table if not exists items (
   kind        text        not null,           -- task | doc | note | unknown
   title       text        not null,           -- AI-generated short title
   body        text        not null default '', -- AI-structured content
+  structured_by text      not null default 'heuristic', -- ai | heuristic
   created_at  timestamptz not null default now()
 );
 

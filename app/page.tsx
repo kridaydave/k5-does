@@ -21,6 +21,7 @@ type Item = {
   kind: string
   title: string
   body: string
+  structured_by: string
   created_at: string
 }
 
@@ -210,8 +211,13 @@ export default function Home() {
                           <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.body}</p>
                         )}
                       </div>
-                      <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                        {timeAgo(item.created_at)}
+                      <span className="flex shrink-0 items-center gap-2">
+                        {item.structured_by === 'ai' && (
+                          <Sparkles className="size-3 text-muted-foreground" aria-label="structured by AI" />
+                        )}
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {timeAgo(item.created_at)}
+                        </span>
                       </span>
                     </CardContent>
                   </Card>
