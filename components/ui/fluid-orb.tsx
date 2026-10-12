@@ -7,6 +7,9 @@ import { cn } from '@/lib/utils'
 export type FluidOrbProps = React.ComponentProps<'div'> & {
   size?: number
   color?: string
+  /** Gradient highlight. Defaults to white on a light theme and to the colour's
+   *  own light tint on dark, where a white core reads as a smudge. */
+  highlight?: string
 }
 
 const VERT = `
@@ -26,6 +29,7 @@ precision mediump float;
 uniform vec2 u_resolution;
 uniform float u_time;
 uniform vec3 u_color;
+uniform vec3 u_hi;
 
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
@@ -71,11 +75,12 @@ void main() {
   float anchor = smoothstep(0.0, 0.3, uv.y);
   float shade = clamp(g + (f - 0.5) * 0.8 * anchor, 0.0, 1.0);
 
-  vec3 white = vec3(0.99, 1.0, 1.0);
-  vec3 light = mix(white, u_color, 0.5);
+  // u_hi is the highlight the gradient grows from. White works on a light page
+  // and reads as a smudge on black, so the theme picks it.
+  vec3 light = mix(u_hi, u_color, 0.5);
   vec3 dark = u_color;
 
-  vec3 col = white;
+  vec3 col = u_hi;
   col = mix(col, light, smoothstep(0.28, 0.52, shade));
   col = mix(col, dark, smoothstep(0.58, 0.88, shade));
 
@@ -95,6 +100,13 @@ function hexToRgb(hex: string): [number, number, number] {
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
 }
 
+/** `color` moved `amount` of the way toward white. */
+function tint(hex: string, amount: number) {
+  const [r, g, b] = hexToRgb(hex)
+  const mix = (c: number) => Math.round(c * 255 + (255 - c * 255) * amount)
+  return `#${[mix(r), mix(g), mix(b)].map((c) => c.toString(16).padStart(2, '0')).join('')}`
+}
+
 function compile(gl: WebGLRenderingContext, type: number, src: string) {
   const shader = gl.createShader(type)
   if (!shader) return null
@@ -111,6 +123,7 @@ function compile(gl: WebGLRenderingContext, type: number, src: string) {
 const FluidOrb = ({
   size = 240,
   color = '#1A73F2',
+  highlight,
   className,
   style,
   ...props
@@ -152,6 +165,10 @@ const FluidOrb = ({
     const uResolution = gl.getUniformLocation(program, 'u_resolution')
     const uTime = gl.getUniformLocation(program, 'u_time')
     gl.uniform3f(gl.getUniformLocation(program, 'u_color'), ...hexToRgb(color))
+    const hi =
+      highlight ??
+      (document.documentElement.classList.contains('dark') ? tint(color, 0.45) : '#ffffff')
+    gl.uniform3f(gl.getUniformLocation(program, 'u_hi'), ...hexToRgb(hi))
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     const px = Math.round(size * dpr)
@@ -178,7 +195,7 @@ const FluidOrb = ({
       gl.deleteShader(frag)
       gl.deleteBuffer(buffer)
     }
-  }, [size, color])
+  }, [size, color, highlight])
 
   return (
     <div

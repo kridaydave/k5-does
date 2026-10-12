@@ -84,9 +84,10 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
+  /* True black page, and cards a hair above it so they separate by border. */
+  --background: oklch(0 0 0);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  --card: oklch(0.145 0 0);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
@@ -126,5 +127,27 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* The glows behind the composer keep a slow drift of their own so the glass
+   has moving light in it even when nobody is typing. Transform only, so the
+   compositor does the work. The two loops have different lengths so they
+   never line up. */
+@keyframes orb-drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(-16px, 20px, 0); }
+}
+@keyframes orb-drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(18px, -16px, 0); }
+}
+.orb-drift-a { animation: orb-drift-a 16s ease-in-out infinite; }
+.orb-drift-b { animation: orb-drift-b 19s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-drift-a,
+  .orb-drift-b {
+    animation: none;
   }
 }
