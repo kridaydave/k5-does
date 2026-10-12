@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Sparkles } from 'lucide-react'
+import { GlassButton, GlassContent, GlassScene } from '@glass-sdk/liquid-glass'
 import { AreaChart } from '@/components/dither-kit/area-chart'
 import { Area } from '@/components/dither-kit/area'
 import { Grid } from '@/components/dither-kit/grid'
@@ -55,6 +56,32 @@ function buildActivity(items: Item[], now: number) {
   return days.map(({ day: _day, ...rest }) => rest)
 }
 
+// Liquid glass needs a WebGPU adapter; without one the library renders a
+// faint, broken-looking surface. Detect once on mount and fall back to the
+// regular shadcn button so the UI is never degraded.
+function useWebGPUSupported() {
+  const [supported, setSupported] = useState<boolean | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        if (!navigator.gpu) {
+          if (!cancelled) setSupported(false)
+          return
+        }
+        const adapter = await navigator.gpu.requestAdapter()
+        if (!cancelled) setSupported(adapter !== null)
+      } catch {
+        if (!cancelled) setSupported(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  return supported
+}
+
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.round(diff / 60000)
@@ -72,6 +99,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   // Set after mount so the time read never runs during prerender.
   const [now, setNow] = useState<number | null>(null)
+  const webgpu = useWebGPUSupported()
   const activity = useMemo(
     () => (now === null ? [] : buildActivity(items, now)),
     [items, now],
@@ -112,6 +140,38 @@ export default function Home() {
 
   const taskCount = items.filter((i) => i.kind === 'task').length
 
+  // Shared between the glass and plain capture card; only the button differs.
+  const captureBody = (
+    <CardContent className="flex flex-col gap-4 pt-6">
+      <Textarea
+        className="min-h-24 resize-none text-sm"
+        placeholder="Type anything — a task, a thought, a link…"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) capture()
+        }}
+      />
+      <div className="flex items-center justify-between">
+        <span className="font-mono text-xs text-muted-foreground">⌘↵ to capture</span>
+        {webgpu === true ? (
+          <GlassButton size="sm" onClick={capture} disabled={busy || !text.trim()} className="font-medium">
+            {busy ? 'Structuring…' : 'Capture'}
+          </GlassButton>
+        ) : (
+          <Button onClick={capture} disabled={busy || !text.trim()}>
+            {busy ? 'Structuring…' : 'Capture'}
+          </Button>
+        )}
+      </div>
+      {error && (
+        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error} — is DATABASE_URL set and the schema applied?
+        </p>
+      )}
+    </CardContent>
+  )
+
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto flex max-w-3xl flex-col gap-8 px-6 py-14">
@@ -130,30 +190,33 @@ export default function Home() {
         </header>
 
         {/* Capture */}
-        <Card>
-          <CardContent className="flex flex-col gap-4 pt-6">
-            <Textarea
-              className="min-h-24 resize-none text-sm"
-              placeholder="Type anything — a task, a thought, a link…"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) capture()
-              }}
-            />
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-xs text-muted-foreground">⌘↵ to capture</span>
-              <Button onClick={capture} disabled={busy || !text.trim()}>
-                {busy ? 'Structuring…' : 'Capture'}
-              </Button>
-            </div>
-            {error && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error} — is DATABASE_URL set and the schema applied?
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        {webgpu === true ? (
+          <GlassScene
+            material="regular"
+            className="relative overflow-hidden rounded-xl border border-border"
+            onDiagnostic={(d) => {
+              if (d.error) {
+                console.warn('[liquid-glass]', d.error.message)
+              }
+            }}
+          >
+            <GlassContent>
+              <div className="pointer-events-none absolute inset-0">
+                <div className="absolute -right-16 -top-24">
+                  <FluidOrb size={200} color="#1A73F2" />
+                </div>
+                <div className="absolute -bottom-28 -left-20">
+                  <FluidOrb size={180} color="#7C5CFF" />
+                </div>
+              </div>
+            </GlassContent>
+            <Card className="relative border-0 bg-transparent shadow-none">
+              {captureBody}
+            </Card>
+          </GlassScene>
+        ) : (
+          <Card>{captureBody}</Card>
+        )}
 
         {/* Activity */}
         <Card>
