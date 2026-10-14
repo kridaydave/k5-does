@@ -1,0 +1,37 @@
+{
+  "kind": "terminal",
+  "command": "bash /tmp/opencode/engine-check.sh",
+  "argv": [
+    "bash",
+    "/tmp/opencode/engine-check.sh"
+  ],
+  "exit": 0,
+  "durationMs": 3093,
+  "recordedAt": "2026-10-14T18:00:02.339Z",
+  "cwd": "/home/kriday/.t3/worktrees/self-os/t3-cff68a80",
+  "stdoutLines": 13,
+  "stderrLines": 1,
+  "checks": [],
+  "issues": [],
+  "stdout": "### unreachable site (expect non-zero, clear reason)\n[engine] 2026-10-14T17:59:58.778Z queue fetch failed: fetch failed: connect ECONNREFUSED 127.0.0.1:59999\n[engine] 2026-10-14T17:59:58.826Z aborting: no queue to work with\nexit=1\n\n### empty queue (expect exit 0)\n[engine] 2026-10-14T18:00:00.309Z queue empty\nexit=0\n\n### unreachable site WITHOUT dry run (real code path, expect non-zero)\n[engine] 2026-10-14T18:00:00.859Z queue fetch failed: fetch failed: connect ECONNREFUSED 127.0.0.1:59999\n[engine] 2026-10-14T18:00:00.861Z aborting: no queue to work with\nexit=1\n",
+  "stderr": "",
+  "artifacts": [
+    {
+      "kind": "svg",
+      "path": "term-20261014-175957.svg",
+      "bytes": null,
+      "width": null,
+      "height": null,
+      "hash": null
+    },
+    {
+      "kind": "png",
+      "path": "term-20261014-175957.png",
+      "bytes": null,
+      "width": 1717,
+      "height": 1016,
+      "hash": "934117ca7ce7"
+    }
+  ],
+  "gif": null
+}

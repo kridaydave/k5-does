@@ -22,6 +22,8 @@ You need a Postgres connection string. Two ways:
 3. `cp .env.example .env.local`, paste the string as `DATABASE_URL`.
 4. `npm run dev`, open http://localhost:3000.
 
+Before pushing, `npm run typecheck` and `npm run lint` are both clean gates.
+
 **No cloud account yet — local Postgres with zero installs:**
 ```
 node scripts/local-pg.mjs &                      # real Postgres in WASM on :5433
@@ -44,12 +46,40 @@ No auth on any endpoint.
 
 ## The engine
 
-A background process on the desktop box, started at boot. One pass per boot:
+`scripts/engine.mjs` is the process that actually classifies. It lives on the desktop box and runs once at boot. One pass, then exit:
+
 1. `GET /api/queue` — all unclassified rows, oldest first.
-2. For each row, one `opencode run` on a pinned free-tier model.
+2. For each row, one `opencode run` on a free-tier model.
 3. `POST /api/classify` with everything at once — results land atomically.
 
 Hand-fix is final: setting `kind` on the phone sets `classified_by = 'user'`, and the engine skips those rows forever.
+
+| Env var | Default | What it does |
+|---|---|---|
+| `SELFOS_API` | `http://127.0.0.1:3000` | Where the site is served |
+| `SELFOS_MODEL` | `opencode/cat-jam-free` | Which model classifies |
+| `SELFOS_DRY_RUN` | unset | `1` uses a local keyword heuristic and makes zero AI calls, so you can test the loop without burning tokens |
+
+Nothing in the logs ever contains your note text, only ids and kinds. Raw text does ride in `argv` while `opencode run` runs, so anything on the box running `ps` can see it for those few seconds. Noted at `promptFor` in the script if that ever needs to change.
+
+### Run it once by hand
+
+```bash
+SELFOS_API=http://localhost:3000 node scripts/engine.mjs
+SELFOS_API=http://localhost:3000 SELFOS_DRY_RUN=1 node scripts/engine.mjs   # no AI calls
+```
+
+Non-zero exit means something went wrong: the site was unreachable, every item failed, or the queue came back malformed. That is deliberate, a boot process that fails quietly is worse than one that shows up red.
+
+### Run it at boot
+
+`scripts/selfos-engine.service` is a systemd user unit. Fill in your checkout path and your site URL, copy it to `~/.config/systemd/user/`, then:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now selfos-engine.service
+journalctl --user -u selfos-engine.service
+```
 
 ## Deploy to Vercel
 
