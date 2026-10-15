@@ -1,0 +1,41 @@
+# self-os site: the Next.js production build, served by `next start`.
+# This is the self-hosted stand-in for the Vercel deployment.
+#
+# EDIT the two things below before enabling:
+#   1. WorkingDirectory / ExecStart  -> your checkout of this repo
+#   2. the -H flag in ExecStart       -> 127.0.0.1 for desktop only,
+#                                        0.0.0.0 to reach it from a phone
+#
+# Then build once, or the unit has nothing to serve:
+#   npm run build
+#
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now selfos-site.service
+#   journalctl --user -u selfos-site.service
+#
+# There is no auth on this app by design, so anything that can reach the bound
+# address can read and write every capture. `next start` binds 0.0.0.0 by
+# default, which puts it on your whole network, so -H 127.0.0.1 is passed
+# explicitly below. Change it only when you want a phone on the same wifi to
+# reach it, and know that anything on that wifi can read your notes.
+
+[Unit]
+Description=self-os site (Next.js production build)
+After=network.target selfos-pg.service
+Wants=selfos-pg.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/path/to/self-os
+ExecStart=/usr/bin/env node %h/path/to/self-os/node_modules/next/dist/bin/next start -p 3000 -H 127.0.0.1
+Environment=PATH=/home/kriday/.opencode/bin:/usr/local/bin:/usr/bin:/bin
+Environment=NODE_ENV=production
+# dbname and port must match what selfos-pg.service is running (5433 default;
+# SELFOS_LOCAL_PG_PORT there means the same change here).
+Environment=DATABASE_URL=postgresql://selfos:selfos@127.0.0.1:5433/selfos
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
