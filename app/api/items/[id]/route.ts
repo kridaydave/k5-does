@@ -1,6 +1,17 @@
 import { NextResponse } from 'next/server'
 import { pool, type Item } from '@/lib/db'
 
+// Postgres raises 22P02 on a non-uuid string, which surfaces as an unhandled
+// 500. A bad id in the URL is a client mistake, so it gets a 400 like any other
+// malformed input rather than a stack trace.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function badId(id: string) {
+  return UUID.test(id)
+    ? null
+    : NextResponse.json({ error: 'id must be a uuid' }, { status: 400 })
+}
+
 // PATCH /api/items/:id — triage + hand-fix (phone)
 // Accepts `status` (open|done) and/or `kind` (hand-fix). A kind change locks
 // the row: classified_by = 'user', classified_at = now(). The engine skips
@@ -10,6 +21,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
+  const invalid = badId(id)
+  if (invalid) return invalid
+
   let body: unknown
   try {
     body = await request.json()
@@ -75,6 +89,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
+  const invalid = badId(id)
+  if (invalid) return invalid
+
   const { rowCount } = await pool.query('delete from items where id = $1', [id])
   if (rowCount === 0) {
     return NextResponse.json({ error: 'item not found' }, { status: 404 })

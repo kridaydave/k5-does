@@ -60,7 +60,7 @@ Hand-fix is final: setting `kind` on the phone sets `classified_by = 'user'`, an
 | `SELFOS_MODEL` | `opencode/cat-jam-free` | Which model classifies |
 | `SELFOS_DRY_RUN` | unset | `1` uses a local keyword heuristic and makes zero AI calls, so you can test the loop without burning tokens |
 
-Nothing in the logs ever contains your note text, only ids and kinds. Raw text does ride in `argv` while `opencode run` runs, so anything on the box running `ps` can see it for those few seconds. Noted at `promptFor` in the script if that ever needs to change.
+Nothing in the logs ever contains your note text, only ids and kinds. The prompt is handed to `opencode run` through a 0600 temp file rather than `argv`, so your raw text is not visible to anything on the box running `ps`. Noted at `promptFor` in the script.
 
 ### Run it once by hand
 

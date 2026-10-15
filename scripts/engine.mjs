@@ -4,7 +4,7 @@
 // failure here is loud: a boot process that quietly does nothing is worse than one
 // that exits non-zero and shows up red in `systemctl --user status`.
 import { spawn } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -203,11 +203,9 @@ function coerceClassification(value) {
 }
 
 /**
- * The raw text rides in argv because `opencode run` takes the prompt as a
- * positional argument. That makes it briefly readable by anything on the box
- * running `ps`. These are private notes, so the alternative of writing a prompt
- * file and passing `--file` is the right trade if that ever matters more than the
- * extra moving part.
+ * The caller writes this into a 0600 temp file and passes `--file`, so the raw
+ * text never lands in `argv` where anything on the box running `ps` could read
+ * it. These are private notes, so that stays the arrangement.
  *
  * @param {string} rawText
  * @returns {string}
@@ -330,9 +328,17 @@ function dryRunClassify(rawText) {
  * @returns {Promise<Result | null>}
  */
 async function classifyItem(item) {
-  const classification = DRY_RUN ? dryRunClassify(item.raw_text) : await classifyWithOpenCode(item.raw_text)
-  if (classification === null) return null
-  return { id: item.id, ...classification }
+  try {
+    const classification = DRY_RUN ? dryRunClassify(item.raw_text) : await classifyWithOpenCode(item.raw_text)
+    if (classification === null) return null
+    return { id: item.id, ...classification }
+  } catch (e) {
+    // mkdtempSync and spawn throw synchronously inside the Promise executor, so a
+    // full /tmp or an exhausted process table rejects here. One item's failure
+    // must not take the rest of the queue down with it.
+    log(`item ${item.id} failed: ${describeError(e)}`)
+    return null
+  }
 }
 
 async function main() {
@@ -364,6 +370,13 @@ async function main() {
   }
 
   log(`pulled ${items.length} items${DRY_RUN ? ' (dry run)' : ''}${malformed > 0 ? `, ${malformed} malformed` : ''}`)
+
+  // A malformed row means the queue endpoint broke its contract. Classify what
+  // did arrive, but the run cannot claim success: the dropped rows are gone for
+  // this pass and nothing downstream will ever hear about them.
+  if (malformed > 0) {
+    log(`queue came back malformed: ${malformed} row(s) were not in queue shape and are dropped this run`)
+  }
 
   /** @type {Result[]} */
   const results = []
@@ -410,7 +423,9 @@ async function main() {
   log(`wrote back ${results.length} results, failures ${failureCount}`)
   log(`server said updated ${summary.updated}, skipped ${summary.skipped}`)
 
-  return 0
+  // The write-back landed, but the queue itself was malformed. Exit non-zero so
+  // the boot run shows red rather than reporting a clean pass over dropped rows.
+  return malformed > 0 ? 1 : 0
 }
 
 main()
