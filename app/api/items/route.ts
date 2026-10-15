@@ -15,8 +15,17 @@ export async function GET() {
 // Stores raw_text only. Everything else is null/default. No classification
 // happens here — the engine classifies asynchronously.
 export async function POST(request: Request) {
-  const { raw_text } = (await request.json()) as { raw_text?: string }
-  const text = (raw_text ?? '').trim()
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'invalid json' }, { status: 400 })
+  }
+  const raw_text = (body as { raw_text?: unknown })?.raw_text
+  if (typeof raw_text !== 'string') {
+    return NextResponse.json({ error: 'raw_text must be a string' }, { status: 400 })
+  }
+  const text = raw_text.trim()
   if (!text) return NextResponse.json({ error: 'raw_text is required' }, { status: 400 })
 
   const { rows } = await pool.query<Item>(

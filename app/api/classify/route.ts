@@ -29,10 +29,33 @@ type ClassifyResponse = {
 }
 
 export async function POST(request: Request) {
-  const { failure_count = 0, results } = (await request.json()) as ClassifyRequest
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'invalid json' }, { status: 400 })
+  }
+  const req = (body ?? {}) as Partial<ClassifyRequest>
+  const failure_count = typeof req.failure_count === 'number' ? req.failure_count : 0
+  const results = req.results
 
   if (!Array.isArray(results) || results.length === 0) {
     return NextResponse.json({ error: 'results required' }, { status: 400 })
+  }
+
+  const allowedKinds = new Set(['task', 'doc', 'note', 'unknown'])
+  const kindErrors: string[] = []
+  for (const r of results) {
+    if (typeof r?.id !== 'string' || r.id === '') kindErrors.push('empty id')
+    else if (typeof r.kind !== 'string' || !allowedKinds.has(r.kind)) kindErrors.push(`bad kind: ${r.kind}`)
+    if (typeof r.title === 'string' && r.title.length > 200) kindErrors.push('title too long')
+    if (typeof r.body === 'string' && r.body.length > 4000) kindErrors.push('body too long')
+  }
+  if (kindErrors.length) {
+    return NextResponse.json(
+      { error: 'invalid result', issues: kindErrors.slice(0, 5) },
+      { status: 400 },
+    )
   }
 
   const client = await pool.connect()

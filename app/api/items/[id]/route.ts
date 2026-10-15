@@ -10,13 +10,28 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const { status, kind } = (await request.json()) as {
-    status?: 'open' | 'done'
-    kind?: 'task' | 'doc' | 'note' | 'unknown'
+  let body: unknown
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'invalid json' }, { status: 400 })
   }
+  const status = (body as { status?: unknown })?.status
+  const kind = (body as { kind?: unknown })?.kind
 
   if (!status && !kind) {
     return NextResponse.json({ error: 'status or kind required' }, { status: 400 })
+  }
+
+  const validStatuses = new Set(['open', 'done'])
+  if (status != null && !validStatuses.has(status as string)) {
+    return NextResponse.json({ error: 'status must be open or done' }, { status: 400 })
+  }
+  // Hand-fix is phone-only; the engine writes via /api/classify. Keep the set
+  // limited to what the phone UI can produce.
+  const validKinds = new Set(['task', 'doc', 'note'])
+  if (kind != null && !validKinds.has(kind as string)) {
+    return NextResponse.json({ error: 'kind must be task, doc or note' }, { status: 400 })
   }
 
   const updates: string[] = []

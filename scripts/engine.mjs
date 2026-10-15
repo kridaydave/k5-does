@@ -85,10 +85,10 @@ async function fetchQueue() {
  * definition, so they are counted as failures instead of being classified.
  *
  * @param {unknown} payload
- * @returns {{ items: QueueItem[], malformed: number }}
+ * @returns {{ items: QueueItem[], malformed: number } | null}
  */
 function parseQueue(payload) {
-  if (!Array.isArray(payload)) return { items: [], malformed: 0 }
+  if (!Array.isArray(payload)) return null
 
   /** @type {QueueItem[]} */
   const items = []
@@ -321,7 +321,12 @@ async function main() {
     return 1
   }
 
-  const { items, malformed } = parseQueue(payload)
+  const parsed = parseQueue(payload)
+  if (parsed === null) {
+    log('queue fetch failed: response was not a JSON array')
+    return 1
+  }
+  const { items, malformed } = parsed
   let failureCount = malformed
 
   if (items.length === 0) {
