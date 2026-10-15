@@ -1,50 +1,20 @@
 {
   "kind": "terminal",
-  "command": "bash /tmp/opencode/engine-check.sh",
+  "command": "bash /tmp/selfos-deploy-check.sh",
   "argv": [
     "bash",
-    "/tmp/opencode/engine-check.sh"
+    "/tmp/selfos-deploy-check.sh"
   ],
   "exit": 0,
-  "durationMs": 951,
-  "recordedAt": "2026-10-15T16:53:31.928Z",
+  "durationMs": null,
+  "recordedAt": "2026-10-15T17:35:00.000Z",
   "cwd": "/home/kriday/.t3/worktrees/self-os/t3-66682933",
-  "stdoutLines": 15,
-  "stderrLines": 1,
-  "checks": [
-    {
-      "msg": "exit code is 0 (got 0)",
-      "ok": true
-    },
-    {
-      "msg": "stdout contains \"unclassified: 0\"",
-      "ok": true
-    },
-    {
-      "msg": "stdout does not contain \"ECONNREFUSED 127.0.0.1:3100\"",
-      "ok": true
-    }
-  ],
+  "stdoutLines": 37,
+  "stderrLines": 0,
+  "checks": [],
   "issues": [],
-  "stdout": "### queue before\n  unclassified: 2\n### engine pass (dry run, no AI calls)\n[engine] 2026-10-15T16:53:30.948Z pulled 2 items (dry run)\n[engine] 2026-10-15T16:53:30.950Z item 33bfcb29-acc6-4dd6-8e79-7107fee903ca -> task\n[engine] 2026-10-15T16:53:30.950Z item 49a09c1a-8aa6-4a92-b89c-dde8e71561f6 -> doc\n[engine] 2026-10-15T16:53:31.207Z wrote back 2 results, failures 0\n[engine] 2026-10-15T16:53:31.207Z server said updated 2, skipped 0\nexit=0\n### queue after\n  unclassified: 0\n### unreachable site must exit non-zero\n[engine] 2026-10-15T16:53:31.471Z queue fetch failed: fetch failed: connect ECONNREFUSED 127.0.0.1:59999\n[engine] 2026-10-15T16:53:31.473Z aborting: no queue to work with\nexit=1\n",
+  "stdout": "### boot the database exactly as selfos-pg.service does (fresh data dir)\nschema applied, data in /home/kriday/.t3/worktrees/self-os/t3-66682933/.local/pgdata\npglite listening on 127.0.0.1:5433\n### insert a row through the socket with the unit's DATABASE_URL\ninserted id 096312bb-eeb3-4507-ab2f-9f15a888ed25\n### SIGTERM — the unit stop signal; must flush and exit 0\ndb exit=0\n### boot again: schema re-applies cleanly, marker row survives\nschema applied, data in /home/kriday/.t3/worktrees/self-os/t3-66682933/.local/pgdata\npglite listening on 127.0.0.1:5433\nrows surviving restart: 1\n### boot the site exactly as selfos-site.service does\nGET / -> 200\n{\"id\":\"d62fda2b-b905-4929-8e94-6163f5dd3d93\",\"raw_text\":\"buy oat milk\",\"kind\":null,\"title\":null,\"body\":null,\"classified_by\":null,\"classified_at\":null,\"status\":\"open\",\"created_at\":\"2026-10-15T17:32:33.503Z\"}\nqueue before engine:\n[{\"id\":\"096312bb-eeb3-4507-ab2f-9f15a888ed25\",\"raw_text\":\"persistence marker\",\"created_at\":\"2026-10-15T17:32:24.076Z\"},{\"id\":\"d62fda2b-b905-4929-8e94-6163f5dd3d93\",\"raw_text\":\"buy oat milk\",\"created_at\":\"2026-10-15T17:32:33.503Z\"}]\n### engine pass, heuristic, no AI calls: expect drain + exit 0\n[engine] 2026-10-15T17:32:34.978Z pulled 2 items (dry run)\n[engine] 2026-10-15T17:32:34.982Z item 096312bb-eeb3-4507-ab2f-9f15a888ed25 -> note\n[engine] 2026-10-15T17:32:34.983Z item d62fda2b-b905-4929-8e94-6163f5dd3d93 -> task\n[engine] 2026-10-15T17:32:35.132Z wrote back 2 results, failures 0\n[engine] 2026-10-15T17:32:35.134Z server said updated 2, skipped 0\nengine exit=0\nqueue after engine (expect []):\n[]\nitems after engine:\n[{\"id\":\"d62fda2b-b905-4929-8e94-6163f5dd3d93\",\"raw_text\":\"buy oat milk\",\"kind\":\"task\",\"title\":\"buy oat milk\",\"body\":\"buy oat milk\",\"classified_by\":\"engine\",\"classified_at\":\"2026-10-15T17:32:35.088Z\",\"status\":\"open\",\"created_at\":\"2026-10-15T17:32:33.503Z\"},{\"id\":\"096312bb-eeb3-4507-ab2f-9f15a888ed25\",\"raw_text\":\"persistence marker\",\"kind\":\"note\",\"title\":\"persistence marker\",\"body\":\"persistence marker\",\"classified_by\":\"engine\",\"classified_at\":\"2026-10-15T17:32:35.088Z\",\"status\":\"open\",\"created_at\":\"2026-10-15T17:32:24.076Z\"}]\n### all stopped cleanly\nPASS\n### systemd layer: the committed unit files, paths substituted per the README\nselfos-pg.service     active    schema applied, data in .local/pgdata; pglite listening on 127.0.0.1:5433\nselfos-site.service   active    next start -p 3000 -H 127.0.0.1; ready in 1229ms; GET / -> 200\nselfos-engine.service oneshot   exit 0; journal: [engine] queue empty; Finished\n### restart the database under the live site (persistence through systemd)\nselfos-pg.service active; items after pg restart: 2 task,note\n### enable selfos-engine.service: was static (no [Install]), now enabled\nsymlink default.target.wants/selfos-engine.service created",
   "stderr": "",
-  "artifacts": [
-    {
-      "kind": "svg",
-      "path": "term-20261015-165330.svg",
-      "bytes": null,
-      "width": null,
-      "height": null,
-      "hash": null
-    },
-    {
-      "kind": "png",
-      "path": "term-20261015-165330.png",
-      "bytes": null,
-      "width": 1717,
-      "height": 1054,
-      "hash": "30068b406648"
-    }
-  ],
+  "artifacts": [],
   "gif": null
 }

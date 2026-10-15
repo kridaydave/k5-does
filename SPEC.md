@@ -82,6 +82,7 @@ Hand-fix cycles the kind badge from the phone.
 - Host: Vercel. Build needs no env vars, runtime needs DATABASE_URL.
 - Run db/schema.sql in Neon once.
 - Engine: systemd user unit on the desktop box, started at boot.
+- Self-hosted fallback, no accounts: the same three processes as user units (scripts/selfos-*.service). PGlite with a persistent data dir replaces Neon, `next start` replaces Vercel. Same code path, same DATABASE_URL shape.
 
 ## Non-goals
 
