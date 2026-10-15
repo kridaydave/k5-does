@@ -1,0 +1,27 @@
+# self-os classification engine: one pass over the unclassified queue at boot.
+#
+# EDIT THE TWO VALUES BELOW before enabling:
+#   1. WorkingDirectory / ExecStart  -> your checkout of this repo
+#   2. SELFOS_API                     -> where the app is served (local dev or your deployed domain)
+#
+# Then:
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now selfos-engine.service
+#
+# Read the logs:
+#   journalctl --user -u selfos-engine.service
+#
+# Type=oneshot means it runs the queue, writes results back, and exits. Failures
+# are loud (non-zero exit) so they show up in `systemctl --user status`.
+
+[Unit]
+Description=self-os classification engine (one pass at boot)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/path/to/self-os
+ExecStart=/usr/bin/env node %h/path/to/self-os/scripts/engine.mjs
+Environment=SELFOS_API=https://<your-vercel-domain>
+# Environment=SELFOS_MODEL=opencode/cat-jam-free
+# Environment=SELFOS_DRY_RUN=1
