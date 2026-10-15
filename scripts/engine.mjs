@@ -4,6 +4,9 @@
 // failure here is loud: a boot process that quietly does nothing is worse than one
 // that exits non-zero and shows up red in `systemctl --user status`.
 import { spawn } from 'node:child_process'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 const API = process.env.SELFOS_API ?? 'http://127.0.0.1:3000'
 
@@ -233,9 +236,24 @@ function promptFor(rawText) {
  */
 function classifyWithOpenCode(rawText) {
   return new Promise((resolve) => {
+    // Keep the private note out of argv/`ps` by passing it through a 0600 temp file.
+    const dir = mkdtempSync(join(tmpdir(), 'selfos-'))
+    const promptPath = join(dir, 'prompt.txt')
+    writeFileSync(promptPath, promptFor(rawText), { mode: 0o600, encoding: 'utf8' })
+
     const child = spawn(
       'opencode',
-      ['run', '--model', MODEL, '--format', 'json', promptFor(rawText)],
+      [
+        'run',
+        '--model',
+        MODEL,
+        '--format',
+        'json',
+        '--file',
+        promptPath,
+        '--auto',
+        'classify this capture',
+      ],
       // Own process group so a timeout can take down opencode's own children too;
       // killing just the direct child leaves them running and they pile up one
       // leaked tree per hung item at every boot.
@@ -249,6 +267,11 @@ function classifyWithOpenCode(rawText) {
       if (settled) return
       settled = true
       clearTimeout(timer)
+      try {
+        rmSync(dir, { recursive: true, force: true })
+      } catch {
+        // temp dir may already be gone; nothing to do
+      }
       resolve(value)
     }
 
