@@ -1,6 +1,16 @@
 'use client'
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import {
+  DndContext,
+  PointerSensor,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
 import { Trash2, Check, Plus, Minus } from 'lucide-react'
 import { GlassButton, GlassContent, GlassScene } from '@glass-sdk/liquid-glass'
 import { DitherAvatar } from '@/components/dither-kit/avatar'
@@ -139,6 +149,63 @@ async function deleteItem(id: string) {
   return res.json()
 }
 
+// Drag source: each card. transform follows the pointer; opacity drops while
+// dragging so the lane underneath reads as the target.
+function DraggableCard({ id, children }: { id: string; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id })
+  return (
+    <li
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className="touch-manipulation"
+      style={
+        transform
+          ? {
+              transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+              opacity: 0.6,
+              zIndex: 20,
+              position: 'relative',
+            }
+          : undefined
+      }
+      data-dragging={isDragging || undefined}
+    >
+      {children}
+    </li>
+  )
+}
+
+// Drop target: a lane column. Highlights when a card hovers it.
+function DroppableLane({
+  id,
+  title,
+  count,
+  children,
+}: {
+  id: string
+  title: string
+  count: string
+  children: ReactNode
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id })
+  return (
+    <section
+      ref={setNodeRef}
+      data-lane={id}
+      className={`flex min-h-0 flex-col rounded-md transition-colors lg:border-r lg:border-border/40 lg:last:border-r-0 ${
+        isOver ? 'bg-foreground/[0.04]' : ''
+      }`}
+    >
+      <div className="flex items-baseline justify-between px-1 pb-2">
+        <h2 className="text-sm font-medium">{title}</h2>
+        <span className="font-mono text-xs text-muted-foreground">{count}</span>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto pb-6 pr-1">{children}</div>
+    </section>
+  )
+}
+
 export default function Home() {
   const [items, setItems] = useState<Item[]>([])
   const [text, setText] = useState('')
@@ -252,8 +319,8 @@ export default function Home() {
     const variant = KIND_VARIANT[item.kind ?? 'unknown'] ?? 'outline'
 
     return (
-      <li key={item.id}>
-        <Card className="py-3 transition-colors hover:border-foreground/20">
+      <DraggableCard key={item.id} id={item.id}>
+        <Card className="cursor-grab py-3 transition-colors hover:border-foreground/20 active:cursor-grabbing">
           <CardContent className="flex items-start gap-3">
             {/* Seeded on the id, so an item keeps the same face across loads. */}
             <DitherAvatar name={item.id} size={28} className="mt-0.5 shrink-0" />
@@ -292,16 +359,16 @@ export default function Home() {
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
-              {isStructured && (
-                <Button
-                  variant={item.status === 'open' ? 'ghost' : 'outline'}
-                  size="xs"
-                  onClick={() => toggleStatus(item)}
-                  title={item.status === 'open' ? 'Mark done' : 'Mark open'}
-                >
-                  <Check className="size-3" />
-                </Button>
-              )}
+              {/* Unclassified items are fully triageable: the check works on
+                  them before classification (spec), not just structured ones. */}
+              <Button
+                variant={item.status === 'open' ? 'ghost' : 'outline'}
+                size="xs"
+                onClick={() => toggleStatus(item)}
+                title={item.status === 'open' ? 'Mark done' : 'Mark open'}
+              >
+                <Check className="size-3" />
+              </Button>
               <Button
                 variant="ghost"
                 size="xs"
@@ -313,19 +380,45 @@ export default function Home() {
             </div>
           </CardContent>
         </Card>
-      </li>
+      </DraggableCard>
     )
   }
 
-  function lane(title: string, count: string, children: React.ReactNode) {
+  // Drop a card on Done → status done; drop it on Inbox/Open → status open.
+  // Buttons stay the primary path (spec); drag is a shortcut over the same
+  // PATCH, optimistic with revert on failure.
+  async function handleDragEnd(event: DragEndEvent) {
+    const lane = event.over?.id
+    if (lane !== 'inbox' && lane !== 'open' && lane !== 'done') return
+    const id = String(event.active.id)
+    const item = items.find((i) => i.id === id)
+    if (!item) return
+    const nextStatus = lane === 'done' ? 'done' : 'open'
+    if (item.status === nextStatus) return
+    const prevStatus = item.status
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: nextStatus } : i)))
+    try {
+      await patchItem(id, { status: nextStatus })
+    } catch (e) {
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: prevStatus } : i)))
+      setError(e instanceof Error ? e.message : 'Something went wrong')
+    }
+  }
+
+  // Pointer for mouse/trackpad, touch for the phone. A few px of movement
+  // before activation so taps on badge/check/delete never start a drag.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 180, tolerance: 6 },
+    }),
+  )
+
+  function lane(id: string, title: string, count: string, children: React.ReactNode) {
     return (
-      <section className="flex min-h-0 flex-col lg:border-r lg:border-border/40 lg:last:border-r-0">
-        <div className="flex items-baseline justify-between px-1 pb-2">
-          <h2 className="text-sm font-medium">{title}</h2>
-          <span className="font-mono text-xs text-muted-foreground">{count}</span>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto pb-6 pr-1">{children}</div>
-      </section>
+      <DroppableLane id={id} title={title} count={count}>
+        {children}
+      </DroppableLane>
     )
   }
 
@@ -445,35 +538,34 @@ export default function Home() {
       </div>
 
       {/* Three lanes, one per triage state. Stacks to a single column on a
-          phone, which is the shape this is actually used in. */}
-      <main className="relative z-10 grid min-h-0 flex-1 grid-cols-1 gap-y-4 px-4 lg:grid-cols-3 lg:gap-x-4">
-        {lane(
-          'Inbox',
-          `${inbox.length} unclassified`,
-          inbox.length === 0 ? (
-            emptyLane()
-          ) : (
-            <ul className="flex flex-col gap-2">{inbox.map(renderItem)}</ul>
-          ),
-        )}
+          phone, which is the shape this is actually used in. Drag is a
+          shortcut; the check buttons do the same PATCH underneath. */}
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <main className="relative z-10 grid min-h-0 flex-1 grid-cols-1 gap-y-4 px-4 lg:grid-cols-3 lg:gap-x-4">
+          {lane(
+            'inbox',
+            'Inbox',
+            `${inbox.length} unclassified`,
+            inbox.length === 0 ? (
+              emptyLane()
+            ) : (
+              <ul className="flex min-h-16 flex-col gap-2">{inbox.map(renderItem)}</ul>
+            ),
+          )}
 
-        {lane(
-          'Open',
-          `${open.length} open`,
-          open.length === 0 ? (
-            emptyLane()
-          ) : (
-            <ul className="flex flex-col gap-2">{open.map(renderItem)}</ul>
-          ),
-        )}
+          {lane(
+            'open',
+            'Open',
+            `${open.length} open`,
+            open.length === 0 ? (
+              emptyLane()
+            ) : (
+              <ul className="flex min-h-16 flex-col gap-2">{open.map(renderItem)}</ul>
+            ),
+          )}
 
-        <section className="flex min-h-0 flex-col lg:border-r-0">
-          <div className="flex items-baseline justify-between px-1 pb-2">
-            <h2 className="text-sm font-medium">Done</h2>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-xs text-muted-foreground">
-                {done.length} done
-              </span>
+          <DroppableLane id="done" title="Done" count={`${done.length} done`}>
+            <div className="flex items-center justify-end px-1 pb-1">
               <Button
                 variant="ghost"
                 size="xs"
@@ -483,16 +575,16 @@ export default function Home() {
                 {doneExpanded ? <Minus className="size-3" /> : <Plus className="size-3" />}
               </Button>
             </div>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto pb-6 pr-1">
-            {doneExpanded && done.length > 0 ? (
-              <ul className="flex flex-col gap-2">{done.map(renderItem)}</ul>
-            ) : doneExpanded ? (
-              emptyLane()
-            ) : null}
-          </div>
-        </section>
-      </main>
+            <div className="min-h-0 flex-1 overflow-y-auto pb-6 pr-1">
+              {doneExpanded && done.length > 0 ? (
+                <ul className="flex min-h-16 flex-col gap-2">{done.map(renderItem)}</ul>
+              ) : doneExpanded ? (
+                emptyLane()
+              ) : null}
+            </div>
+          </DroppableLane>
+        </main>
+      </DndContext>
     </div>
   )
 }
