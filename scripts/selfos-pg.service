@@ -1,0 +1,31 @@
+# self-os database: PGlite (real Postgres in WASM) on a TCP socket, persistent
+# across restarts. This is the local stand-in for Neon.
+#
+# EDIT WorkingDirectory / ExecStart to your checkout before enabling.
+#
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now selfos-pg.service
+#   journalctl --user -u selfos-pg.service
+#
+# Set SELFOS_PG_BIND=0.0.0.0 only if a phone on the same wifi needs to reach the
+# database directly. The app reaching it over 127.0.0.1 is the normal setup, and
+# this database has no auth on it.
+
+[Unit]
+Description=self-os database (PGlite on a local socket)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/path/to/self-os
+ExecStart=/usr/bin/env node %h/path/to/self-os/scripts/local-pg.mjs
+Environment=PATH=/home/kriday/.opencode/bin:/usr/local/bin:/usr/bin:/bin
+# Environment=SELFOS_PG_BIND=0.0.0.0
+
+# Restart on crash, but not in a tight loop: a broken database should show up as
+# a failed unit rather than pegging a core.
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

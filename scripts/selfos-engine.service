@@ -21,7 +21,8 @@
 
 [Unit]
 Description=self-os classification engine (one pass at boot)
-After=network-online.target
+After=network-online.target selfos-site.service
+Wants=selfos-site.service
 
 [Service]
 Type=oneshot
@@ -29,5 +30,10 @@ WorkingDirectory=%h/path/to/self-os
 ExecStart=/usr/bin/env node %h/path/to/self-os/scripts/engine.mjs
 Environment=PATH=/home/kriday/.opencode/bin:/usr/local/bin:/usr/bin:/bin
 Environment=SELFOS_API=https://<your-vercel-domain>
+# For the self-hosted local site (scripts/selfos-site.service) instead:
+# Environment=SELFOS_API=http://127.0.0.1:3000
 # Environment=SELFOS_MODEL=opencode/cat-jam-free
 # Environment=SELFOS_DRY_RUN=1
+
+[Install]
+WantedBy=default.target
