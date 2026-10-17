@@ -4,6 +4,11 @@
 #   1. WorkingDirectory / ExecStart  -> your checkout of this repo
 #   2. SELFOS_API                     -> where the app is served (local dev or your deployed domain)
 #
+# PATH is set explicitly because systemd's default does not include the opencode
+# install dir. Without it the engine spawns `opencode`, the spawn fails, and every
+# item comes back unclassified. If opencode lives somewhere else on your box, add
+# that dir to PATH here.
+#
 # Then:
 #   systemctl --user daemon-reload
 #   systemctl --user enable --now selfos-engine.service
@@ -22,6 +27,7 @@ After=network-online.target
 Type=oneshot
 WorkingDirectory=%h/path/to/self-os
 ExecStart=/usr/bin/env node %h/path/to/self-os/scripts/engine.mjs
+Environment=PATH=/home/kriday/.opencode/bin:/usr/local/bin:/usr/bin:/bin
 Environment=SELFOS_API=https://<your-vercel-domain>
 # Environment=SELFOS_MODEL=opencode/cat-jam-free
 # Environment=SELFOS_DRY_RUN=1

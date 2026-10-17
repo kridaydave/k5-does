@@ -67,7 +67,9 @@ export async function POST(request: Request) {
     let skipped = 0
 
     // Process each result in the transaction. An update that touches 0 rows
-    // either doesn't exist (defensive) or was skipped by a hand-fix.
+    // either doesn't exist (defensive), was skipped by a hand-fix, or was
+    // already classified — the queue only ever hands out `kind is null` rows, so
+    // re-applying a result is a no-op rather than a silent re-type.
     for (const result of results) {
       const { rowCount } = await client.query(
         `update items
@@ -77,6 +79,7 @@ export async function POST(request: Request) {
               classified_by = 'engine',
               classified_at = $4
          where id = $5
+           and kind is null
            and classified_by is distinct from 'user'`,
         [result.kind, result.title ?? null, result.body ?? null, classified_at, result.id],
       )

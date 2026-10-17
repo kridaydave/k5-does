@@ -6,7 +6,9 @@ import { PGlite } from '@electric-sql/pglite'
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket'
 import { readFileSync } from 'node:fs'
 
-const PORT = 5433
+// Overridable so two checkouts can each run their own database. Two sessions on
+// one box otherwise fight over 5433, and the second one dies on EADDRINUSE.
+const PORT = Number(process.env.SELFOS_LOCAL_PG_PORT ?? 5433)
 
 const db = await PGlite.create()
 await db.exec(readFileSync(new URL('../db/schema.sql', import.meta.url), 'utf8'))

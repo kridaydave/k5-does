@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1717" height="1054" viewBox="0 0 1717 1054" font-family="ui-monospace,'DejaVu Sans Mono',Menlo,monospace">
+<style>.c{bg:#000000;panel:#0b0b0c;border:#232327;ink:#f4f4f5;muted:#8b8b93;cyan:#67e8f9;green:#4ade80;amber:#fbbf24;red:#f87171;violet:#c4b5fd</style>
+<rect width="1717" height="1054" fill="#000000"/>
+<text x="52" y="80" fill="#f4f4f5" font-size="33.6" font-weight="700">bash</text>
+<text x="180.64" y="80" fill="#8b8b93" font-size="23.8">2 block(s) · exit 0 · 951ms</text>
+<line x1="52" y1="120" x2="1665" y2="120" stroke="#232327"/>
+<rect x="52" y="152" width="1613" height="142" rx="14" fill="#0b0b0c" stroke="#232327"/>
+<line x1="52" y1="220" x2="1665" y2="220" stroke="#232327"/>
+<text x="104" y="192.4" fill="#8b8b93" font-size="28">01</text>
+<text x="154.56799999999998" y="192.4" fill="#67e8f9" font-size="28" font-weight="700">$bash /tmp/opencode/engine-check.sh</text>
+<text x="1478.152" y="192.4" fill="#4ade80" font-size="23.8">exit 0</text>
+<text x="104" y="256.4" fill="#f4f4f5" font-size="28" xml:space="preserve">$ bash /tmp/opencode/engine-check.sh</text>
+<text x="104" y="302.4" fill="#8b8b93" font-size="21.84">ran in 951ms</text>
+<rect x="52" y="318" width="1613" height="712" rx="14" fill="#0b0b0c" stroke="#232327"/>
+<line x1="52" y1="386" x2="1665" y2="386" stroke="#232327"/>
+<text x="104" y="358.4" fill="#8b8b93" font-size="28">02</text>
+<text x="154.56799999999998" y="358.4" fill="#67e8f9" font-size="28" font-weight="700">$stdout</text>
+<text x="1478.152" y="358.4" fill="#4ade80" font-size="23.8">exit 0</text>
+<text x="104" y="422.4" fill="#f4f4f5" font-size="28" xml:space="preserve">### queue before</text>
+<text x="104" y="460.4" fill="#f4f4f5" font-size="28" xml:space="preserve">  unclassified: 2</text>
+<text x="104" y="498.4" fill="#f4f4f5" font-size="28" xml:space="preserve">### engine pass (dry run, no AI calls)</text>
+<text x="104" y="536.4" fill="#f4f4f5" font-size="28" xml:space="preserve">[engine] 2026-10-15T16:53:30.948Z pulled 2 items (dry run)</text>
+<text x="104" y="574.4" fill="#f4f4f5" font-size="28" xml:space="preserve">[engine] 2026-10-15T16:53:30.950Z item 33bfcb29-acc6-4dd6-8e79-7107fee903ca -&gt; task</text>
+<text x="104" y="612.4" fill="#f4f4f5" font-size="28" xml:space="preserve">[engine] 2026-10-15T16:53:30.950Z item 49a09c1a-8aa6-4a92-b89c-dde8e71561f6 -&gt; doc</text>
+<text x="104" y="650.4" fill="#f4f4f5" font-size="28" xml:space="preserve">[engine] 2026-10-15T16:53:31.207Z wrote back 2 results, failures 0</text>
+<text x="104" y="688.4" fill="#f4f4f5" font-size="28" xml:space="preserve">[engine] 2026-10-15T16:53:31.207Z server said updated 2, skipped 0</text>
+<text x="104" y="726.4" fill="#f4f4f5" font-size="28" xml:space="preserve">exit=0</text>
+<text x="104" y="764.4" fill="#f4f4f5" font-size="28" xml:space="preserve">### queue after</text>
+<text x="104" y="802.4" fill="#f4f4f5" font-size="28" xml:space="preserve">  unclassified: 0</text>
+<text x="104" y="840.4" fill="#f4f4f5" font-size="28" xml:space="preserve">### unreachable site must exit non-zero</text>
+<text x="104" y="878.4" fill="#f4f4f5" font-size="28" xml:space="preserve">[engine] 2026-10-15T16:53:31.471Z queue fetch failed: fetch failed: connect ECONNREFUSED</text>
+<text x="104" y="916.4" fill="#f4f4f5" font-size="28" xml:space="preserve">127.0.0.1:59999</text>
+<text x="104" y="954.4" fill="#f4f4f5" font-size="28" xml:space="preserve">[engine] 2026-10-15T16:53:31.473Z aborting: no queue to work with</text>
+<text x="104" y="992.4" fill="#f4f4f5" font-size="28" xml:space="preserve">exit=1</text>
+<text x="104" y="1038.4" fill="#8b8b93" font-size="21.84">15 line(s)</text>
+</svg>

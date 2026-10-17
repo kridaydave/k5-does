@@ -11,7 +11,17 @@ create table if not exists items (
   classified_by text        null,                -- 'engine' | 'user'; null until classified
   classified_at timestamptz null,                -- set by engine or hand-fix
   status        text        not null default 'open', -- open | done
-  created_at    timestamptz not null default now()
+  created_at    timestamptz not null default now(),
+
+  -- The allowlists are also enforced in the API, but a value the UI cannot
+  -- render (an unknown kind shows a blank badge) should never reach the table
+  -- in the first place. These make the database the last line of defence.
+  constraint items_kind_check
+    check (kind is null or kind in ('task', 'doc', 'note', 'unknown')),
+  constraint items_status_check
+    check (status in ('open', 'done')),
+  constraint items_classified_by_check
+    check (classified_by is null or classified_by in ('engine', 'user'))
 );
 
 -- The queue: unclassified items, smallest possible index for the engine to pull.

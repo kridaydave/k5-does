@@ -19,7 +19,9 @@ One table, `items`. Two independent axes.
 
 Inbox is not a column. It is a view: unclassified and open. Storing it would let the two axes disagree, so it stays derived.
 
-Other columns: raw_text, title, body (nullable), classified_by (engine or user), classified_at, created_at, updated_at.
+Other columns: raw_text, title, body (nullable), classified_by (engine or user), classified_at, created_at.
+
+No updated_at. Nothing sorts or filters on it, so it would only ever hold a value nobody reads. created_at plus classified_at already answer every question the app asks.
 
 `classified_by = 'user'` is a hand-fix lock. The engine skips those rows forever.
 

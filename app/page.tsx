@@ -202,7 +202,9 @@ export default function Home() {
             <div className="min-w-0 flex-1">
               {isStructured ? (
                 <>
-                  <p className="text-sm font-medium">{item.title}</p>
+                  {/* A hand-fix sets kind but never sets a title, so fall back to
+                      the raw text rather than rendering an empty card. */}
+                  <p className="text-sm font-medium">{item.title ?? item.raw_text}</p>
                   {item.body && item.body !== item.title && (
                     <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                       {item.body}

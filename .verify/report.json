@@ -6,19 +6,32 @@
     "/tmp/opencode/engine-check.sh"
   ],
   "exit": 0,
-  "durationMs": 3093,
-  "recordedAt": "2026-10-14T18:00:02.339Z",
-  "cwd": "/home/kriday/.t3/worktrees/self-os/t3-cff68a80",
-  "stdoutLines": 13,
+  "durationMs": 951,
+  "recordedAt": "2026-10-15T16:53:31.928Z",
+  "cwd": "/home/kriday/.t3/worktrees/self-os/t3-66682933",
+  "stdoutLines": 15,
   "stderrLines": 1,
-  "checks": [],
+  "checks": [
+    {
+      "msg": "exit code is 0 (got 0)",
+      "ok": true
+    },
+    {
+      "msg": "stdout contains \"unclassified: 0\"",
+      "ok": true
+    },
+    {
+      "msg": "stdout does not contain \"ECONNREFUSED 127.0.0.1:3100\"",
+      "ok": true
+    }
+  ],
   "issues": [],
-  "stdout": "### unreachable site (expect non-zero, clear reason)\n[engine] 2026-10-14T17:59:58.778Z queue fetch failed: fetch failed: connect ECONNREFUSED 127.0.0.1:59999\n[engine] 2026-10-14T17:59:58.826Z aborting: no queue to work with\nexit=1\n\n### empty queue (expect exit 0)\n[engine] 2026-10-14T18:00:00.309Z queue empty\nexit=0\n\n### unreachable site WITHOUT dry run (real code path, expect non-zero)\n[engine] 2026-10-14T18:00:00.859Z queue fetch failed: fetch failed: connect ECONNREFUSED 127.0.0.1:59999\n[engine] 2026-10-14T18:00:00.861Z aborting: no queue to work with\nexit=1\n",
+  "stdout": "### queue before\n  unclassified: 2\n### engine pass (dry run, no AI calls)\n[engine] 2026-10-15T16:53:30.948Z pulled 2 items (dry run)\n[engine] 2026-10-15T16:53:30.950Z item 33bfcb29-acc6-4dd6-8e79-7107fee903ca -> task\n[engine] 2026-10-15T16:53:30.950Z item 49a09c1a-8aa6-4a92-b89c-dde8e71561f6 -> doc\n[engine] 2026-10-15T16:53:31.207Z wrote back 2 results, failures 0\n[engine] 2026-10-15T16:53:31.207Z server said updated 2, skipped 0\nexit=0\n### queue after\n  unclassified: 0\n### unreachable site must exit non-zero\n[engine] 2026-10-15T16:53:31.471Z queue fetch failed: fetch failed: connect ECONNREFUSED 127.0.0.1:59999\n[engine] 2026-10-15T16:53:31.473Z aborting: no queue to work with\nexit=1\n",
   "stderr": "",
   "artifacts": [
     {
       "kind": "svg",
-      "path": "term-20261014-175957.svg",
+      "path": "term-20261015-165330.svg",
       "bytes": null,
       "width": null,
       "height": null,
@@ -26,11 +39,11 @@
     },
     {
       "kind": "png",
-      "path": "term-20261014-175957.png",
+      "path": "term-20261015-165330.png",
       "bytes": null,
       "width": 1717,
-      "height": 1016,
-      "hash": "934117ca7ce7"
+      "height": 1054,
+      "hash": "30068b406648"
     }
   ],
   "gif": null
