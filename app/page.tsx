@@ -1,22 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
-import {
-  DndContext,
-  PointerSensor,
-  TouchSensor,
-  useDraggable,
-  useDroppable,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from '@dnd-kit/core'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Trash2, Check, Plus, Minus } from 'lucide-react'
-import { GlassButton, GlassContent, GlassScene } from '@glass-sdk/liquid-glass'
 import { DitherAvatar } from '@/components/dither-kit/avatar'
 import { DitherGradient } from '@/components/dither-kit/gradient'
 import { Sparkline } from '@/components/dither-kit/sparkline'
-import FluidOrb from '@/components/ui/fluid-orb'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -58,32 +46,6 @@ function timeAgo(iso: string) {
   const hours = Math.round(mins / 60)
   if (hours < 24) return `${hours}h ago`
   return `${Math.round(hours / 24)}d ago`
-}
-
-// The liquid-glass surfaces need a WebGPU adapter. Without one the library
-// renders a faint broken-looking sheet, so the glass path is gated and the
-// plain shadcn button renders instead. Never a degraded UI.
-function useWebGPUSupported() {
-  const [supported, setSupported] = useState<boolean | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        if (!navigator.gpu) {
-          if (!cancelled) setSupported(false)
-          return
-        }
-        const adapter = await navigator.gpu.requestAdapter()
-        if (!cancelled) setSupported(adapter !== null)
-      } catch {
-        if (!cancelled) setSupported(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-  return supported
 }
 
 // Captures per day for the last 14 days, oldest first. Drives the header
@@ -149,35 +111,138 @@ async function deleteItem(id: string) {
   return res.json()
 }
 
-// Drag source: each card. transform follows the pointer; opacity drops while
-// dragging so the lane underneath reads as the target.
-function DraggableCard({ id, children }: { id: string; children: ReactNode }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id })
+// Card visual only — no drag hooks. One instance lives in the lane inside a
+// MovableCard; the grip on each card moves it by keyboard.
+function ItemCard({
+  item,
+  onHandFix,
+  onToggleStatus,
+  onDelete,
+}: {
+  item: Item
+  onHandFix: (item: Item) => void
+  onToggleStatus: (item: Item) => void
+  onDelete: (item: Item) => void
+}) {
+  const isStructured = item.kind !== null
+  const kindLabel = isStructured ? KIND_LABEL[item.kind ?? 'unknown'] : 'Unclassified'
+  const variant = KIND_VARIANT[item.kind ?? 'unknown'] ?? 'outline'
+
   return (
-    <li
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      className="touch-manipulation"
-      style={
-        transform
-          ? {
-              transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-              opacity: 0.6,
-              zIndex: 20,
-              position: 'relative',
+    <Card className="cursor-grab py-3 transition-colors hover:border-foreground/20 active:cursor-grabbing">
+      <CardContent className="flex items-start gap-3">
+        {/* Seeded on the id, so an item keeps the same face across loads. */}
+        <DitherAvatar name={item.id} size={28} className="mt-0.5 shrink-0" />
+
+        {/* Hand-fix: tapping the badge cycles task/doc/note */}
+        <Badge
+          variant={variant}
+          className="mt-1 shrink-0 cursor-pointer capitalize"
+          onClick={() => onHandFix(item)}
+          title="Tap to reclassify"
+        >
+          {kindLabel}
+        </Badge>
+
+        <div className="min-w-0 flex-1">
+          {isStructured ? (
+            <>
+              {/* A hand-fix sets kind but never sets a title, so fall back to
+                  the raw text rather than rendering an empty card. */}
+              <p className="text-sm font-medium">{item.title ?? item.raw_text}</p>
+              {/* Only worth a second line when it says something the title
+                  does not. The dry-run heuristic sets body to a copy of the
+                  raw text, which would otherwise print the same words twice. */}
+              {item.body && item.body !== item.title && item.body !== item.raw_text && (
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.body}</p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">{item.raw_text}</p>
+          )}
+          <p className="mt-1 font-mono text-xs text-muted-foreground">{timeAgo(item.created_at)}</p>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1">
+          {/* Unclassified items are fully triageable: the check works on
+              them before classification (spec), not just structured ones. */}
+          <Button
+            variant={item.status === 'open' ? 'ghost' : 'outline'}
+            size="xs"
+            onClick={() => onToggleStatus(item)}
+            title={item.status === 'open' ? 'Mark done' : 'Mark open'}
+          >
+            <Check className="size-3" />
+          </Button>
+          <Button variant="ghost" size="xs" onClick={() => onDelete(item)} title="Delete">
+            <Trash2 className="size-3" />
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// Keyboard move: the grip is a real tab stop. Space/Enter lifts the card
+// (focus stays on the grip), then 1/2/3 drops it into Inbox/Open/Done, or
+// Esc cancels. Screen-reader friendly via aria-grabbed.
+function MovableCard({
+  id,
+  grabbed,
+  onGrab,
+  onDrop,
+  onCancel,
+  children,
+}: {
+  id: string
+  grabbed: boolean
+  onGrab: (id: string) => void
+  onDrop: (lane: 'inbox' | 'open' | 'done') => void
+  onCancel: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <li className="touch-manipulation">
+      <div className="flex items-start gap-1">
+        <button
+          type="button"
+          aria-label="Move card (press Space to lift, 1/2/3 to drop, Esc to cancel)"
+          aria-grabbed={grabbed}
+          onClick={() => onGrab(id)}
+          onKeyDown={(e) => {
+            if (!grabbed && (e.key === ' ' || e.key === 'Enter')) {
+              e.preventDefault()
+              onGrab(id)
+            } else if (grabbed && e.key === '1') {
+              e.preventDefault()
+              onDrop('inbox')
+            } else if (grabbed && e.key === '2') {
+              e.preventDefault()
+              onDrop('open')
+            } else if (grabbed && e.key === '3') {
+              e.preventDefault()
+              onDrop('done')
+            } else if (grabbed && e.key === 'Escape') {
+              e.preventDefault()
+              onCancel()
             }
-          : undefined
-      }
-      data-dragging={isDragging || undefined}
-    >
-      {children}
+          }}
+          className={`mt-3 shrink-0 cursor-grab rounded px-0.5 font-mono text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing ${
+            grabbed ? 'bg-foreground/10 text-foreground' : ''
+          }`}
+          title="Space to lift, 1/2/3 to drop, Esc to cancel"
+        >
+          ⠿
+        </button>
+        <div className="min-w-0 flex-1">{children}</div>
+      </div>
     </li>
   )
 }
 
-// Drop target: a lane column. Highlights when a card hovers it.
-function DroppableLane({
+// Lane column. Plain section now — no droppable hooks, keyboard move calls
+// dropOnLane directly with an explicit lane.
+function Lane({
   id,
   title,
   count,
@@ -186,16 +251,12 @@ function DroppableLane({
   id: string
   title: string
   count: string
-  children: ReactNode
+  children: React.ReactNode
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id })
   return (
     <section
-      ref={setNodeRef}
       data-lane={id}
-      className={`flex min-h-0 flex-col rounded-md transition-colors lg:border-r lg:border-border/40 lg:last:border-r-0 ${
-        isOver ? 'bg-foreground/[0.04]' : ''
-      }`}
+      className="flex min-h-0 flex-col rounded-md transition-colors lg:border-r lg:border-border/40 lg:last:border-r-0"
     >
       <div className="flex items-baseline justify-between px-1 pb-2">
         <h2 className="text-sm font-medium">{title}</h2>
@@ -212,7 +273,6 @@ export default function Home() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [doneExpanded, setDoneExpanded] = useState(false)
-  const webgpu = useWebGPUSupported()
 
   // Derived sections — inbox is unclassified + open, never stored.
   const inbox = useMemo(
@@ -314,89 +374,49 @@ export default function Home() {
   }
 
   function renderItem(item: Item) {
-    const isStructured = item.kind !== null
-    const kindLabel = isStructured ? KIND_LABEL[item.kind ?? 'unknown'] : 'Unclassified'
-    const variant = KIND_VARIANT[item.kind ?? 'unknown'] ?? 'outline'
-
     return (
-      <DraggableCard key={item.id} id={item.id}>
-        <Card className="cursor-grab py-3 transition-colors hover:border-foreground/20 active:cursor-grabbing">
-          <CardContent className="flex items-start gap-3">
-            {/* Seeded on the id, so an item keeps the same face across loads. */}
-            <DitherAvatar name={item.id} size={28} className="mt-0.5 shrink-0" />
-
-            {/* Hand-fix: tapping the badge cycles task/doc/note */}
-            <Badge
-              variant={variant}
-              className="mt-1 shrink-0 cursor-pointer capitalize"
-              onClick={() => handFix(item)}
-              title="Tap to reclassify"
-            >
-              {kindLabel}
-            </Badge>
-
-            <div className="min-w-0 flex-1">
-              {isStructured ? (
-                <>
-                  {/* A hand-fix sets kind but never sets a title, so fall back to
-                      the raw text rather than rendering an empty card. */}
-                  <p className="text-sm font-medium">{item.title ?? item.raw_text}</p>
-                  {/* Only worth a second line when it says something the title
-                      does not. The dry-run heuristic sets body to a copy of the
-                      raw text, which would otherwise print the same words twice. */}
-                  {item.body && item.body !== item.title && item.body !== item.raw_text && (
-                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                      {item.body}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">{item.raw_text}</p>
-              )}
-              <p className="mt-1 font-mono text-xs text-muted-foreground">
-                {timeAgo(item.created_at)}
-              </p>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-1">
-              {/* Unclassified items are fully triageable: the check works on
-                  them before classification (spec), not just structured ones. */}
-              <Button
-                variant={item.status === 'open' ? 'ghost' : 'outline'}
-                size="xs"
-                onClick={() => toggleStatus(item)}
-                title={item.status === 'open' ? 'Mark done' : 'Mark open'}
-              >
-                <Check className="size-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={() => handleDelete(item)}
-                title="Delete"
-              >
-                <Trash2 className="size-3" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </DraggableCard>
+      <MovableCard
+        key={item.id}
+        id={item.id}
+        grabbed={grabbedId === item.id}
+        onGrab={(grabId) => setGrabbedId(grabId)}
+        onDrop={(lane) => dropOnLane(item.id, lane)}
+        onCancel={() => setGrabbedId(null)}
+      >
+        <ItemCard
+          item={item}
+          onHandFix={handFix}
+          onToggleStatus={toggleStatus}
+          onDelete={handleDelete}
+        />
+      </MovableCard>
     )
   }
 
-  // Drop a card on Done → status done; drop it on Inbox/Open → status open.
-  // Buttons stay the primary path (spec); drag is a shortcut over the same
-  // PATCH, optimistic with revert on failure.
-  async function handleDragEnd(event: DragEndEvent) {
-    const lane = event.over?.id
-    if (lane !== 'inbox' && lane !== 'open' && lane !== 'done') return
-    const id = String(event.active.id)
+  // Keyboard-lifted card id. Null when nothing is lifted.
+  const [grabbedId, setGrabbedId] = useState<string | null>(null)
+
+  // Move a card to a lane: 1 → Inbox, 2 → Open, 3 → Done. Same optimistic
+  // PATCH + revert as the check buttons, just addressed by lane.
+  async function dropOnLane(id: string, lane: 'inbox' | 'open' | 'done') {
     const item = items.find((i) => i.id === id)
     if (!item) return
     const nextStatus = lane === 'done' ? 'done' : 'open'
-    if (item.status === nextStatus) return
+    // Unclassified cards can't visibly land in Open (that lane is
+    // classified-only), so say so instead of a silent no-op.
+    if (item.kind === null && lane === 'open') {
+      setError('Open is for classified items — hand-fix the kind first, or drop it in Done.')
+      setGrabbedId(null)
+      return
+    }
+    if (item.status === nextStatus) {
+      setGrabbedId(null)
+      return
+    }
     const prevStatus = item.status
+    setError(null)
     setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: nextStatus } : i)))
+    setGrabbedId(null)
     try {
       await patchItem(id, { status: nextStatus })
     } catch (e) {
@@ -405,20 +425,11 @@ export default function Home() {
     }
   }
 
-  // Pointer for mouse/trackpad, touch for the phone. A few px of movement
-  // before activation so taps on badge/check/delete never start a drag.
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 180, tolerance: 6 },
-    }),
-  )
-
   function lane(id: string, title: string, count: string, children: React.ReactNode) {
     return (
-      <DroppableLane id={id} title={title} count={count}>
+      <Lane id={id} title={title} count={count}>
         {children}
-      </DroppableLane>
+      </Lane>
     )
   }
 
@@ -429,9 +440,10 @@ export default function Home() {
   return (
     <div className="relative flex min-h-screen flex-col overflow-hidden">
       {/* A low wash behind the header only. Kept faint on purpose: it has to
-          sit under body text without costing contrast. */}
+          sit under body text without costing contrast. Shimmer is phase-only
+          (threshold breathes, ramp never moves) so it stays a wash. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-40 opacity-[0.10]">
-        <DitherGradient from="purple" to="transparent" direction="down" cell={4} />
+        <DitherGradient from="purple" to="transparent" direction="down" cell={4} animate={0.05} drift={0.08} />
       </div>
 
       {/* Header — last triaged timestamp and a sparkline of capture activity */}
@@ -471,120 +483,82 @@ export default function Home() {
 
       {/* Capture box — raw_text only, no classification at capture time */}
       <div className="relative z-10 px-4 py-3">
-        {webgpu === true ? (
-          <GlassScene
-            material="regular"
-            appearance="dark"
-            className="relative overflow-hidden rounded-xl border border-border"
-            onDiagnostic={(d) => {
-              if (d.error) console.warn('[liquid-glass]', d.error.message)
-            }}
-          >
-            <GlassContent>
-              {/* Something for the glass to refract. Without this the button
-                  has a flat black sheet behind it. */}
-              <div className="pointer-events-none absolute inset-0">
-                <div className="absolute -right-16 -top-24">
-                  <FluidOrb size={200} color="#7C5CFF" />
-                </div>
-                <div className="absolute -bottom-28 -left-20">
-                  <FluidOrb size={180} color="#1A73F2" />
-                </div>
-              </div>
-            </GlassContent>
-
-            <div className="relative flex flex-col gap-2 p-3 sm:flex-row sm:items-end">
-              <Textarea
-                className="min-h-20 resize-none text-sm sm:min-h-16"
-                placeholder="Type anything — a task, a thought, a link…"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleCapture()
-                }}
-              />
-              <GlassButton
-                onClick={handleCapture}
-                disabled={busy || !text.trim()}
-                className="h-8 shrink-0 px-3 text-sm"
-              >
-                {busy ? 'Capturing…' : 'Capture'}
-              </GlassButton>
-            </div>
-          </GlassScene>
-        ) : (
-          <Card>
-            <CardContent className="flex flex-col gap-2 pt-4 sm:flex-row sm:items-end">
-              <Textarea
-                className="min-h-20 resize-none text-sm sm:min-h-16"
-                placeholder="Type anything — a task, a thought, a link…"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleCapture()
-                }}
-              />
-              <Button
-                size="sm"
-                onClick={handleCapture}
-                disabled={busy || !text.trim()}
-                className="h-8 shrink-0"
-              >
-                {busy ? 'Capturing…' : 'Capture'}
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+        <Card>
+          <CardContent className="flex flex-col gap-2 pt-4 sm:flex-row sm:items-end">
+            <Textarea
+              className="min-h-20 resize-none text-sm sm:min-h-16"
+              placeholder="Type anything — a task, a thought, a link…"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleCapture()
+              }}
+            />
+            <Button
+              size="sm"
+              onClick={handleCapture}
+              disabled={busy || !text.trim()}
+              className="h-8 shrink-0"
+            >
+              {busy ? 'Capturing…' : 'Capture'}
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Three lanes, one per triage state. Stacks to a single column on a
-          phone, which is the shape this is actually used in. Drag is a
-          shortcut; the check buttons do the same PATCH underneath. */}
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <main className="relative z-10 grid min-h-0 flex-1 grid-cols-1 gap-y-4 px-4 lg:grid-cols-3 lg:gap-x-4">
-          {lane(
-            'inbox',
-            'Inbox',
-            `${inbox.length} unclassified`,
-            inbox.length === 0 ? (
-              emptyLane()
-            ) : (
-              <ul className="flex min-h-16 flex-col gap-2">{inbox.map(renderItem)}</ul>
-            ),
-          )}
+          phone, which is the shape this is actually used in. The ⠿ grip on
+          each card moves it by keyboard (Space to lift, 1/2/3 to drop);
+          the check buttons do the same PATCH underneath. */}
+      <main className="relative z-10 grid min-h-0 flex-1 grid-cols-1 gap-y-4 px-4 lg:grid-cols-3 lg:gap-x-4">
+        {lane(
+          'inbox',
+          'Inbox',
+          `${inbox.length} unclassified`,
+          inbox.length === 0 ? (
+            emptyLane()
+          ) : (
+            <ul className="flex min-h-16 flex-col gap-2">
+              {inbox.map((item) => renderItem(item))}
+            </ul>
+          ),
+        )}
 
-          {lane(
-            'open',
-            'Open',
-            `${open.length} open`,
-            open.length === 0 ? (
-              emptyLane()
-            ) : (
-              <ul className="flex min-h-16 flex-col gap-2">{open.map(renderItem)}</ul>
-            ),
-          )}
+        {lane(
+          'open',
+          'Open',
+          `${open.length} open`,
+          open.length === 0 ? (
+            emptyLane()
+          ) : (
+            <ul className="flex min-h-16 flex-col gap-2">
+              {open.map((item) => renderItem(item))}
+            </ul>
+          ),
+        )}
 
-          <DroppableLane id="done" title="Done" count={`${done.length} done`}>
-            <div className="flex items-center justify-end px-1 pb-1">
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={() => setDoneExpanded(!doneExpanded)}
-                title={doneExpanded ? 'Collapse' : 'Expand'}
-              >
-                {doneExpanded ? <Minus className="size-3" /> : <Plus className="size-3" />}
-              </Button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto pb-6 pr-1">
-              {doneExpanded && done.length > 0 ? (
-                <ul className="flex min-h-16 flex-col gap-2">{done.map(renderItem)}</ul>
-              ) : doneExpanded ? (
-                emptyLane()
-              ) : null}
-            </div>
-          </DroppableLane>
-        </main>
-      </DndContext>
+        <Lane id="done" title="Done" count={`${done.length} done`}>
+          <div className="flex items-center justify-end px-1 pb-1">
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => setDoneExpanded(!doneExpanded)}
+              title={doneExpanded ? 'Collapse' : 'Expand'}
+            >
+              {doneExpanded ? <Minus className="size-3" /> : <Plus className="size-3" />}
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto pb-6 pr-1">
+            {doneExpanded && done.length > 0 ? (
+              <ul className="flex min-h-16 flex-col gap-2">
+                {done.map((item) => renderItem(item))}
+              </ul>
+            ) : doneExpanded ? (
+              emptyLane()
+            ) : null}
+          </div>
+        </Lane>
+      </main>
     </div>
   )
 }
