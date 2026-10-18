@@ -2,6 +2,12 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Trash2, Check, Plus, Minus } from 'lucide-react'
+import {
+  GlassScene,
+  GlassContent,
+  GlassButton,
+} from '@glass-sdk/liquid-glass'
+import '@glass-sdk/liquid-glass/styles.css'
 import { DitherAvatar } from '@/components/dither-kit/avatar'
 import { DitherGradient } from '@/components/dither-kit/gradient'
 import { Sparkline } from '@/components/dither-kit/sparkline'
@@ -480,6 +486,20 @@ export default function Home() {
           {error}
         </p>
       )}
+
+      {/* Glass hero — drop public/landscape.jpg in for the background. */}
+      <GlassScene material="clear" appearance="dark" style={{ height: 320 }}>
+        <GlassContent>
+          <img
+            src="/landscape.jpg"
+            alt="Mountain landscape"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        </GlassContent>
+        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeContent: 'center', gap: 24 }}>
+          <GlassButton>Get started</GlassButton>
+        </div>
+      </GlassScene>
 
       {/* Capture box — raw_text only, no classification at capture time */}
       <div className="relative z-10 px-4 py-3">
