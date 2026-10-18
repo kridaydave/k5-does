@@ -2,12 +2,8 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { Trash2, Check, Plus, Minus } from 'lucide-react'
-import {
-  GlassScene,
-  GlassContent,
-  GlassButton,
-} from '@glass-sdk/liquid-glass'
-import '@glass-sdk/liquid-glass/styles.css'
+import { GlassButton } from '@glass-sdk/liquid-glass'
+import { Reader } from '@/components/ui/reader'
 import { DitherAvatar } from '@/components/dither-kit/avatar'
 import { DitherGradient } from '@/components/dither-kit/gradient'
 import { Sparkline } from '@/components/dither-kit/sparkline'
@@ -279,6 +275,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [doneExpanded, setDoneExpanded] = useState(false)
+  const [started, setStarted] = useState(false)
 
   // Derived sections — inbox is unclassified + open, never stored.
   const inbox = useMemo(
@@ -445,9 +442,19 @@ export default function Home() {
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-hidden">
-      {/* A low wash behind the header only. Kept faint on purpose: it has to
-          sit under body text without costing contrast. Shimmer is phase-only
-          (threshold breathes, ramp never moves) so it stays a wash. */}
+      {!started ? (
+        <Reader>
+          <div className="flex min-h-[390px] flex-col items-center justify-center gap-4 text-center">
+            <h1 className="text-2xl font-semibold">self-os</h1>
+            <p className="text-sm text-muted-foreground">Capture anything — a task, a thought, a link.</p>
+            <GlassButton onClick={() => setStarted(true)}>Get started</GlassButton>
+          </div>
+        </Reader>
+      ) : (
+        <>
+          {/* A low wash behind the header only. Kept faint on purpose: it has to
+              sit under body text without costing contrast. Shimmer is phase-only
+              (threshold breathes, ramp never moves) so it stays a wash. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-40 opacity-[0.10]">
         <DitherGradient from="purple" to="transparent" direction="down" cell={4} animate={0.05} drift={0.08} />
       </div>
@@ -486,20 +493,6 @@ export default function Home() {
           {error}
         </p>
       )}
-
-      {/* Glass hero — drop public/landscape.jpg in for the background. */}
-      <GlassScene material="clear" appearance="dark" style={{ height: 320 }}>
-        <GlassContent>
-          <img
-            src="/landscape.jpg"
-            alt="Mountain landscape"
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
-        </GlassContent>
-        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeContent: 'center', gap: 24 }}>
-          <GlassButton>Get started</GlassButton>
-        </div>
-      </GlassScene>
 
       {/* Capture box — raw_text only, no classification at capture time */}
       <div className="relative z-10 px-4 py-3">
@@ -579,6 +572,8 @@ export default function Home() {
           </div>
         </Lane>
       </main>
+        </>
+      )}
     </div>
   )
 }
